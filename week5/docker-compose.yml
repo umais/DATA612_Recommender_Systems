@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  recommender:
+    build: .
+    container_name: spark-recommender
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data:/data
+      - ./app:/app
+    working_dir: /app
+    environment:
+      - PYSPARK_PYTHON=/usr/bin/python
+      # Remove hardcoded JAVA_HOME here because entrypoint.sh sets it dynamically
+      - SPARK_HOME=/opt/spark-3.4.1-bin-hadoop3
+      - PATH=/opt/spark-3.4.1-bin-hadoop3/bin:/usr/bin:$PATH
+
+    # Entrypoint script will set JAVA_HOME and run Jupyter
+    entrypoint: ["/entrypoint.sh"]
