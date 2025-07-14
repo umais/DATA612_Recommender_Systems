@@ -1,0 +1,108 @@
+Step-by-Step: Secure Your Jupyter Notebook on Azure
+🔐 1. Set a Password for Jupyter
+On your VM, run:
+
+bash
+Copy
+Edit
+jupyter notebook password
+It will prompt you to enter and confirm a password. This creates a secure hashed password in ~/.jupyter/jupyter_notebook_config.json.
+
+🛠 2. Generate a Jupyter Config (if not already)
+If that file doesn’t exist, generate it first:
+
+bash
+Copy
+Edit
+jupyter notebook --generate-config
+This creates:
+~/.jupyter/jupyter_notebook_config.py
+
+🔒 3. Edit Config to Bind Jupyter to Specific IP + Disable Token Auth
+Open the config file:
+
+bash
+Copy
+Edit
+nano ~/.jupyter/jupyter_notebook_config.py
+And modify (or uncomment + edit) these lines:
+
+python
+Copy
+Edit
+# Only listen on local IP or your private IP to avoid public exposure
+c.NotebookApp.ip = '0.0.0.0'  # or use your private IP if behind a firewall
+
+# Require password login
+c.NotebookApp.password_required = True
+
+# Disable token-based auth (optional)
+c.NotebookApp.token = ''
+Optional (but recommended):
+
+python
+Copy
+Edit
+# Prevent browser from auto-opening
+c.NotebookApp.open_browser = False
+
+# Set port
+c.NotebookApp.port = 8888
+Save and exit (CTRL + O, then CTRL + X).
+
+🔥 4. Tighten NSG Rule (Highly Recommended)
+Right now, anyone on the internet can reach your notebook.
+
+👉 Update your Azure NSG rule for port 8888:
+
+Set Source to "IP Addresses"
+
+Add your specific public IP (e.g., 45.123.67.89)
+
+This will block others from accessing it
+
+You can find your IP here: https://whatismyipaddress.com/
+
+🚀 5. Restart Jupyter Notebook
+Make sure you’re restarting Jupyter so changes take effect:
+
+bash
+Copy
+Edit
+jupyter notebook
+Or you can run it in the background with:
+
+bash
+Copy
+Edit
+nohup jupyter notebook > notebook.log 2>&1 &
+Optional: Use SSH Tunnel Instead (Most Secure)
+If you don’t want to open port 8888 at all, you can use an SSH tunnel:
+
+From your local machine:
+
+bash
+Copy
+Edit
+ssh -L 8888:localhost:8888 youruser@<VM_Public_IP>
+Then access it on your local browser at http://localhost:8888
+
+Let me know if you want me to help you:
+
+Tighten the config file
+
+Restrict NSG to your IP
+
+Set up the SSH tunnel
+
+You're almost done — just lock it down now! 🔐
+
+
+
+
+
+
+
+
+
+Ask ChatGPT

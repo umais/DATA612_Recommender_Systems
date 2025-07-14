@@ -1,0 +1,9 @@
+{
+  "NotebookApp": {
+    "password": "argon2:$argon2id$v=19$m=10240,t=10,p=8$Ru84S6/Xem85n9I9I/342g$S9K9v+U9fWxRkDr3G9A+FoiERLR3ONWDxof0V1kMJRU",
+    "ip": "0.0.0.0",
+    "port": 8888,
+    "open_browser": false,
+    "allow_root": true
+  }
+}

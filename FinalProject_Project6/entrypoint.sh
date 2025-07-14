@@ -9,20 +9,24 @@ echo "JAVA_HOME is set to $JAVA_HOME"
 # Add Python bin directory to PATH
 export PATH=/usr/local/bin:$PATH
 
+# Start Flask in background
+echo "Starting Flask app on port 8080..."
+python /app/main.py &
+
 # Debug: Check if jupyter is available
 echo "Checking for jupyter..."
 which jupyter || echo "jupyter not found in PATH"
 ls -la /usr/local/bin/jupyter* || echo "No jupyter binaries found in /usr/local/bin"
 
-# Try to find and use jupyter
-if [ -f "/usr/local/bin/jupyter" ]; then
-    echo "Using /usr/local/bin/jupyter"
-    exec /usr/local/bin/jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
-elif [ -f "/usr/bin/jupyter" ]; then
-    echo "Using /usr/bin/jupyter"
-    exec /usr/bin/jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
+# Absolute path to config file
+CONFIG_PATH="/app/jupyter_notebook_config.json"
+
+# Check if config file exists
+if [ ! -f "$CONFIG_PATH" ]; then
+  echo "⚠️  Jupyter config file not found at $CONFIG_PATH"
 else
-    echo "Jupyter not found, trying to install..."
-    pip install jupyter notebook
-    exec /usr/local/bin/jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
+  echo "✅ Using config file at $CONFIG_PATH"
 fi
+
+# Launch Jupyter with config file
+exec jupyter notebook --config="$CONFIG_PATH"

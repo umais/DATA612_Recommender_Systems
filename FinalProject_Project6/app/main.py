@@ -1,80 +1,89 @@
 import os
+from flask import Flask, request, jsonify, render_template
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col
-from pyspark.ml.evaluation import RegressionEvaluator
-from pyspark.ml.recommendation import ALS
-import pandas as pd
-from evaluate import evaluate_baseline, compare_results
-from report_generator import generate_report
+from pyspark.ml.recommendation import ALSModel
+import json
+import logging
+logging.basicConfig(level=logging.DEBUG)
+# Set Python paths before SparkSession is created
+os.environ["PYSPARK_PYTHON"] = "/usr/local/bin/python3"
+os.environ["PYSPARK_DRIVER_PYTHON"] = "/usr/local/bin/python3"
 
-def main():
-    print("Starting PySpark ALS Recommender System...")
+app = Flask(__name__, template_folder='templates', static_folder='static')
 
-    # Initialize Spark session
-    spark = SparkSession.builder \
-        .appName("Data612Project5") \
-        .getOrCreate()
+# Initialize Spark session with explicit python config
+spark = SparkSession.builder \
+    .appName("ALS Recommender API") \
+    .config("spark.pyspark.python", "/usr/local/bin/python3") \
+    .config("spark.pyspark.driver.python", "/usr/local/bin/python3") \
+    .getOrCreate()
 
-    # Load data from CSV
-    data_path = "/data/data.csv"
-    ratings_df = spark.read.csv(data_path, header=True, inferSchema=True)
+MODEL_PATH = "/media/amazonratings/als_model"
+als_model = ALSModel.load(MODEL_PATH)
 
-    # Cast user_id, hotel_id, and overall to correct numeric types
-    ratings_df = ratings_df.select(
-        col("user_id").cast("int"),
-        col("hotel_id").cast("int"),
-        col("overall").cast("float")
-    )
+@app.route('/')
+def index():
+    return render_template("index.html")
 
-    # Drop rows with nulls after casting
-    ratings_df = ratings_df.dropna()
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        user_id = int(request.form['user_id'])
+        item_id = int(request.form['item_id'])
+    except (KeyError, ValueError):
+        return render_template("index.html", error="Invalid input")
 
-    print(f"Loaded data: {ratings_df.count()} rows")
+    input_df = spark.createDataFrame([(user_id, item_id)], ["user_id", "item_id"])
+    prediction = als_model.transform(input_df).collect()
 
-    # Train-test split
-    train, test = ratings_df.randomSplit([0.8, 0.2])
+    if prediction and prediction[0]['prediction'] is not None:
+        pred = round(prediction[0]['prediction'], 4)
+        return render_template("index.html", prediction=pred, user_id=user_id, item_id=item_id)
+    else:
+        return render_template("index.html", error="No prediction available")
+    
 
-    # ALS model configuration
-    als = ALS(
-        maxIter=10,
-        regParam=0.1,
-        userCol="user_id",
-        itemCol="hotel_id",
-        ratingCol="overall",
-        coldStartStrategy="drop",
-        nonnegative=True
-    )
 
-    # Train ALS model
-    model = als.fit(train)
+@app.route('/top-recommendations', methods=['GET'])
+def top_recommendations():
+    path = "/media/amazonratings/top_10_recommendations.json/part-00000-3d135d8a-7883-4cdd-8685-6e1aa11b3a94-c000.json"
+    try:
+        data = []
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line:  # skip empty lines
+                    data.append(json.loads(line))
+        return render_template("top_recommendations.html", recommendations=data)
+    except Exception as e:
+        logging.error("Failed to load recommendations", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
-    # Make predictions
-    predictions = model.transform(test)
+@app.route('/api/hello', methods=['GET'])
+def hello():
+    return jsonify({"message": "Hello, world!"})
 
-    # Evaluate predictions
-    evaluator = RegressionEvaluator(
-        metricName="rmse",
-        labelCol="overall",
-        predictionCol="prediction"
-    )
-    rmse_spark = evaluator.evaluate(predictions)
-    print(f"Spark ALS Model RMSE: {rmse_spark:.4f}")
+@app.route('/api/predict', methods=['POST'])
+def api_predict():
+    data = request.get_json()
 
-    # Evaluate baseline model
-    ratings_pd = ratings_df.toPandas()
-    rmse_baseline = evaluate_baseline(ratings_pd)
-    print(f"Baseline Model RMSE: {rmse_baseline:.4f}")
+    if not data or not all(k in data for k in ('user_id', 'item_id')):
+        return jsonify({'error': 'user_id and item_id are required'}), 400
 
-    # Compare both results
-    compare_results(rmse_spark, rmse_baseline)
+    try:
+        user_id = int(data['user_id'])
+        item_id = int(data['item_id'])
+    except ValueError:
+        return jsonify({'error': 'user_id and item_id must be integers'}), 400
 
-    # Generate PDF report
-    report_path = "/app/Project5_Report.pdf"
-    generate_report(rmse_spark, rmse_baseline, report_path)
-    print(f"Report generated at: {report_path}")
+    input_df = spark.createDataFrame([(user_id, item_id)], ["user_id", "item_id"])
+    prediction = als_model.transform(input_df).collect()
 
-    # Stop Spark
-    spark.stop()
+    if prediction and prediction[0]['prediction'] is not None:
+        pred = prediction[0]['prediction']
+        return jsonify({'user_id': user_id, 'item_id': item_id, 'prediction': round(pred, 4)})
+    else:
+        return jsonify({'error': 'No prediction available'}), 404
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=8080, debug=True)

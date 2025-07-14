@@ -5,14 +5,15 @@ services:
     build: .
     container_name: spark-recommender
     ports:
-      - "8888:8888"
+      - "8888:8888"   # jupyter
+      - "8080:8080"   # Flask
     volumes:
       - ./data:/data
       - ./app:/app
       - /media/amazonratings:/media/amazonratings
     working_dir: /app
     environment:
-      - PYSPARK_PYTHON=/usr/bin/python
+      - PYSPARK_PYTHON=/usr/local/bin/python3
       - SPARK_HOME=/opt/spark-3.4.1-bin-hadoop3
       - PATH=/opt/spark-3.4.1-bin-hadoop3/bin:/usr/bin:$PATH
     entrypoint: ["/entrypoint.sh"]
